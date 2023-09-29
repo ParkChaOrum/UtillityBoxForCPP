@@ -52,6 +52,22 @@ public:
 	{
 		return insertIndex;
 	}
+	/// <summary>
+	/// 최대한 Pop을 이용해주세요.
+	/// </summary>
+	/// <returns></returns>
+	T PopByValue()
+	{
+		if (insertIndex <= 0)
+		{
+			ThrowOutOfRange;
+		}
+		else
+		{
+			insertIndex--;
+			return GetRefOfElement(insertIndex);
+		}
+	}
 	T& Pop()
 	{
 		if (insertIndex <= 0)
@@ -64,8 +80,12 @@ public:
 			return GetRefOfElement(insertIndex);
 		}
 	}
-	template<typename... ArgsType>
-	void AddByArgs(ArgsType... args)
+	void Clear()
+	{
+		insertIndex = 0;
+	}
+	template<typename... Args>
+	void AddByArgs(const Args... args)
 	{
 		if (insertIndex >= GetTotalLength())
 		{
@@ -74,7 +94,25 @@ public:
 		GetRefOfElement(insertIndex) = T(args...);
 		insertIndex++;
 	}
-	void AddByElement(T element)
+	/// <summary>
+	/// 총 두 번의 값복사가 일어납니다.
+	/// 최대한 Add 함수를 이용해주세요.
+	/// </summary>
+	/// <param name="element"></param>
+	void AddByValue(const T element)
+	{
+		if (insertIndex >= GetTotalLength())
+		{
+			arrayBlocks.emplace_back(capacity);
+		}
+		GetRefOfElement(insertIndex) = element;
+		insertIndex++;
+	}
+	/// <summary>
+	/// 대입 연산자 정의에 따라 값복사 일어남.
+	/// </summary>
+	/// <param name="element"></param>
+	void Add(const T& element)
 	{
 		if (insertIndex >= GetTotalLength())
 		{
@@ -138,14 +176,14 @@ private:
 	}
 };
 
-class StringBuilder
+class DynamicString
 {
 public:
-	StringBuilder(int capacity)
+	DynamicString(int capacity)
 	{
 		totalString = new DynamicArray<char>(capacity);
 	}
-	~StringBuilder()
+	~DynamicString()
 	{
 		delete totalString;
 		cout << "\nStringBuilder 소멸\n";
@@ -156,12 +194,20 @@ public:
 		{
 			totalString->Pop();
 		}
-		char currentChar = 'a';
-		for (size_t i = 0; currentChar != '\0'; i++)
+		for (size_t i = 0; string[i] != '\0'; i++)
 		{
-			totalString->AddByElement(string[i]);
-			currentChar = string[i];
+			totalString->Add(string[i]);
 		}
+		totalString->Add('\0');
+	}
+	void Append(const char& singleChar)
+	{
+		if (totalString->GetCount() > 0)
+		{
+			totalString->Pop();
+		}
+		totalString->Add(singleChar);
+		totalString->Add('\0');
 	}
 	char* GetCharArray()
 	{
@@ -173,6 +219,47 @@ public:
 		}
 		return charArray;
 	}
+	int GetCount()
+	{
+		return totalString->GetCount();
+	}
+	void Clear()
+	{
+		totalString->Clear();
+	}
 private:
 	DynamicArray<char>* totalString;
+};
+
+template<typename T>
+class DyanamicStack
+{
+public:
+	DyanamicStack(int capacity)
+	{
+		container = new DynamicArray<T>(capacity);
+	};
+	~DyanamicStack()
+	{
+		delete container;
+		cout << "\nStack 소멸\n";
+	};
+	void Push(T& element)
+	{
+		container->Add(element);
+	}
+	void Push(T element)
+	{
+		container->Add(element);
+	}
+	T Pop()
+	{
+		return container->Pop();
+	}
+	void Clear()
+	{
+		container->Clear();
+	}
+private:
+	DynamicArray<T>* container;
 };
