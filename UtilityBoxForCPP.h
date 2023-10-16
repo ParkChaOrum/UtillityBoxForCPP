@@ -582,8 +582,7 @@ public:
 		runningThreadCount = threadsCount;
 		for (int i = 0; i < threadsCount; i++)
 		{
-			//workerThreads[i] = thread(&ThreadPool::Work, this);
-			workerThreads[i] = thread([this, i]() { this->Work(i); });
+			workerThreads[i] = thread(&ThreadPool::Work, this);
 		}
 	}
 	~ThreadPool()
@@ -633,7 +632,7 @@ private:
 	mutex lock;
 	int runningThreadCount;
 	bool stopAll = false;
-	void Work(int index)
+	void Work()
 	{
 		while (true)
 		{
