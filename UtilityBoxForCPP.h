@@ -6,6 +6,7 @@
 #include <mutex>
 #include <thread>
 #define ThrowOutOfRange throw exception("Index is out of range.");
+#define byte char
 using namespace std;
 
 template <typename T>
@@ -19,7 +20,7 @@ public:
 	}
 	~DynamicArrayBlock()
 	{
-		delete data;
+		free(data);
 		cout << "\nDynamicBlock 소멸 \n";
 	}
 	T& operator[](int index)
@@ -191,11 +192,11 @@ public:
 	StaticArray(int capacity, T* originalArray, int arrayLength) : capacity(capacity), myArray(originalArray), insertIndex(arrayLength) {}
 	StaticArray(int capacity) : capacity(capacity)
 	{
-		myArray = new T[capacity];
+		myArray = (T*)malloc(sizeof(T) * capacity);
 	}
 	~StaticArray()
 	{
-		delete myArray;
+		free(myArray);
 		cout << "\nStaticArray 소멸\n";
 	}
 	T& operator[](int index)
@@ -464,7 +465,7 @@ public:
 	}
 	~StaticQueue()
 	{
-		delete data;
+		free(data);
 		cout << "\nStaticQueue 소멸\n";
 	}
 	void Enqueue(T value)
@@ -574,20 +575,110 @@ private:
 	int dequeueIndex = 0;
 };
 
+class alignas(64) MemoryPool
+{
+public:
+	//Alloc은 최대한 64의 배수로
+	MemoryPool(int size) :
+		size(size)
+		, basePointer((byte*)malloc(size))
+	{
+		cout << "\nManagedHeap 생성\n";
+	}
+	~MemoryPool()
+	{
+		cout << "\nManagedHeap 소멸\n";
+		free(basePointer);
+	}
+	//2바이트 얼라 하기도 하고 4바이트 얼라 하기도 하기때문에 얼라 필요함
+	template<typename T>
+	T* Malloc(int size)
+	{
+		T* ptr = (T*)(basePointer + insertOffset);
+		insertOffset += size;
+		return ptr;
+	}
+	template<typename T>
+	T* GetPTR(int startOffset)
+	{
+		return (T*)(basePointer + startOffset);
+	}
+	template<typename T>
+	T* MallocWithLock(int size)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		return Malloc<T>(size);
+	}
+	template<typename T>
+	void SetValue(int startOffset, T value)
+	{
+		*(T*)(basePointer + startOffset) = value;
+	}
+	template<typename T>
+	void SetValueWithLock(int startOffset, T value)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		SetValue<T>(startOffset, value);
+	}
+	template<typename T>
+	T GetValue(int startOffset)
+	{
+		return *(T*)(basePointer + startOffset);
+	}
+	template<typename T>
+	T GetValueWithLock(int startOffset)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		return GetValueWithLock<T>(startOffset);
+	}
+	void Clear()
+	{
+		insertOffset = 0;
+	}
+	void operator=(const MemoryPool& source)
+	{
+		basePointer = source.basePointer;
+		size = source.size;
+		insertOffset = source.insertOffset;
+	}
+private:
+	mutex lock;
+	int insertOffset = 0;
+	int size = 0;
+	byte* basePointer = nullptr;
+};
+
 class ThreadPool
 {
 public:
-	ThreadPool(int threadsCount, int queueCapacity) : taskQueue(DynamicInfiniteQueue<void(*)()>(queueCapacity)) , workerThreads(new thread[threadsCount]) , threadsCount(threadsCount)
+	ThreadPool(int threadsCount, int queueCapacity, int sharedMemorySize, int threadPrivateMemorySize) :
+		  threadsCount(threadsCount)
+		, runningThreadCount(threadsCount)
+		, taskQueue(queueCapacity)
+		, sharedMemory(sharedMemorySize)
+		, workerThreads((thread*)malloc(sizeof(thread)* threadsCount))
+		, threadPrivateMemory((MemoryPool*)malloc(sizeof(MemoryPool) * threadsCount))
 	{
-		runningThreadCount = threadsCount;
 		for (int i = 0; i < threadsCount; i++)
 		{
-			workerThreads[i] = thread(&ThreadPool::Work, this);
+			new (workerThreads + i) thread([i, this]() { this->Work(i); });
+			new (threadPrivateMemory + i) MemoryPool(threadPrivateMemorySize);
 		}
 	}
 	~ThreadPool()
 	{
 		WaitAllThread(true);
+		for (int i = 0; i < threadsCount; i++)
+		{
+			workerThreads[i].~thread();
+		}
+		free(workerThreads);
+		for (int i = 0; i < threadsCount; i++)
+		{
+			threadPrivateMemory[i].~MemoryPool();
+		}
+		free(threadPrivateMemory);
+		cout << "\nThreadPool 소멸\n";
 	}
 	void WaitAllThread(bool andStop)
 	{
@@ -616,7 +707,7 @@ public:
 			}
 		}
 	}
-	void EnqueueTask(void(*task)())
+	void EnqueueTask(void(*task)(int, ThreadPool*))
 	{
 		{
 			unique_lock<mutex> mutexLock(lock);
@@ -624,19 +715,22 @@ public:
 		}
 		cv.notify_one();
 	}
+	MemoryPool sharedMemory;
+	MemoryPool* threadPrivateMemory;
 private:
-	DynamicInfiniteQueue<void(*)()> taskQueue;
+	DynamicInfiniteQueue<void(*)(int, ThreadPool*)> taskQueue;
 	thread* workerThreads;
 	int threadsCount;
 	condition_variable cv;
 	mutex lock;
+	//각각의 쓰레드마다의 플래그를 만들어놓고 64byte alignment를 하는게 성능상 더 이득이지 않을까?
 	int runningThreadCount;
 	bool stopAll = false;
-	void Work()
+	void Work(int threadIndex)
 	{
 		while (true)
 		{
-			void(*task)() = nullptr;
+			void(*task)(int, ThreadPool*) = nullptr;
 			{
 				unique_lock<mutex> mutexLock(lock);
 				while (taskQueue.IsEmpty())
@@ -651,7 +745,7 @@ private:
 				}
 				task = taskQueue.Dequeue();
 			}
-			task();
+			task(threadIndex, this);
 		}
 	}
 };
