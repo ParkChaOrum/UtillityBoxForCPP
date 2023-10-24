@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#define CacheLineSize 64
 #define ThrowOutOfRange throw exception("Index is out of range.");
 #define byte char
 using namespace std;
@@ -13,7 +14,7 @@ template <typename T>
 class DynamicArrayBlock
 {
 public:
-	DynamicArrayBlock(int length)
+	DynamicArrayBlock(size_t length)
 	{
 		this->length = length;
 		data = (T*)malloc(sizeof(T) * length);
@@ -23,7 +24,7 @@ public:
 		free(data);
 		cout << "\nDynamicBlock 소멸 \n";
 	}
-	T& operator[](int index)
+	T& operator[](size_t index)
 	{
 		if (index < 0 || index >= length)
 		{
@@ -34,12 +35,12 @@ public:
 			return data[index];
 		}
 	}
-	int GetLength()
+	size_t GetLength()
 	{
 		return length;
 	}
 private:
-	int length;
+	size_t length;
 	T* data;
 };
 
@@ -47,12 +48,12 @@ template <typename T>
 class DynamicArray
 {
 public:
-	DynamicArray(int capacity) : capacity(capacity) {}
+	DynamicArray(size_t capacity) : capacity(capacity) {}
 	~DynamicArray()
 	{
 		cout << "\nDynamicArray 소멸 \n";
 	}
-	int GetCount()
+	size_t GetCount()
 	{
 		return insertIndex;
 	}
@@ -62,15 +63,7 @@ public:
 	/// <returns></returns>
 	T PopByValue()
 	{
-		if (insertIndex <= 0)
-		{
-			ThrowOutOfRange;
-		}
-		else
-		{
-			insertIndex--;
-			return GetRefOfElement(insertIndex);
-		}
+		return Pop();
 	}
 	T& Pop()
 	{
@@ -91,12 +84,8 @@ public:
 	template<typename... Args>
 	void AddByArgs(const Args... args)
 	{
-		if (insertIndex >= GetTotalLength())
-		{
-			arrayBlocks.emplace_back(capacity);
-		}
-		GetRefOfElement(insertIndex) = T(args...);
-		insertIndex++;
+		T element = T(args...);
+		Add(element);
 	}
 	/// <summary>
 	/// 총 두 번의 값복사가 일어납니다.
@@ -105,12 +94,7 @@ public:
 	/// <param name="element"></param>
 	void AddByValue(const T element)
 	{
-		if (insertIndex >= GetTotalLength())
-		{
-			arrayBlocks.emplace_back(capacity);
-		}
-		GetRefOfElement(insertIndex) = element;
-		insertIndex++;
+		Add(element);
 	}
 	/// <summary>
 	/// 대입 연산자 정의에 따라 값복사 일어남.
@@ -125,7 +109,7 @@ public:
 		GetRefOfElement(insertIndex) = element;
 		insertIndex++;
 	}
-	T& operator[](int index)
+	T& operator[](size_t index)
 	{
 		if (index < 0 || index >= insertIndex)
 		{
@@ -136,36 +120,36 @@ public:
 			return GetRefOfElement(index);
 		}
 	}
-	int GetCapacity()
+	size_t GetCapacity()
 	{
 		return capacity;
 	}
 protected:
-	int insertIndex = 0;
-	int capacity;
+	size_t insertIndex = 0;
+	size_t capacity;
 	list<DynamicArrayBlock<T>> arrayBlocks;
-	T& GetRefOfElement(int index)
+	T& GetRefOfElement(size_t index)
 	{
-		int localIndex;
+		size_t localIndex;
 		DynamicArrayBlock<T>& block = GetBlockByGlobalIndex(arrayBlocks, index, &localIndex);
 		return block[localIndex];
 	}
-	int GetTotalLength()
+	size_t GetTotalLength()
 	{
 		return capacity * arrayBlocks.size();
 	}
-	int GetLocalIndex(int globalIndex, int blockIndex)
+	size_t GetLocalIndex(size_t globalIndex, size_t blockIndex)
 	{
 		return globalIndex - (capacity * blockIndex);
 	}
-	DynamicArrayBlock<T>& GetBlockByGlobalIndex(list<DynamicArrayBlock<T>>& arrayBlocks, int globalIndex, int* localIndex)
+	DynamicArrayBlock<T>& GetBlockByGlobalIndex(list<DynamicArrayBlock<T>>& arrayBlocks, size_t globalIndex, size_t* localIndex)
 	{
-		int blockIndex = globalIndex / capacity;
+		size_t blockIndex = globalIndex / capacity;
 		*localIndex = GetLocalIndex(globalIndex, blockIndex);
-		if (unsigned(blockIndex) < (arrayBlocks.size() / 2))
+		if (blockIndex < (arrayBlocks.size() / 2))
 		{
 			typename list<DynamicArrayBlock<T>>::iterator forwardIterator = arrayBlocks.begin();
-			for (int i = 0; i < blockIndex; i++)
+			for (size_t i = 0; i < blockIndex; i++)
 			{
 				forwardIterator++;
 			}
@@ -174,8 +158,8 @@ protected:
 		else
 		{
 			typename list<DynamicArrayBlock<T>>::reverse_iterator backwardIterator = arrayBlocks.rbegin();
-			int loopCount = arrayBlocks.size() - blockIndex - 1;
-			for (int i = 0; i < loopCount; i++)
+			size_t loopCount = arrayBlocks.size() - blockIndex - 1;
+			for (size_t i = 0; i < loopCount; i++)
 			{
 				backwardIterator++;
 			}
@@ -188,18 +172,18 @@ template <typename T>
 class StaticArray
 {
 public:
-	StaticArray(T* originalArray, int arrayLength) : capacity(arrayLength), myArray(originalArray), insertIndex(arrayLength) {}
-	StaticArray(int capacity, T* originalArray, int arrayLength) : capacity(capacity), myArray(originalArray), insertIndex(arrayLength) {}
-	StaticArray(int capacity) : capacity(capacity)
+	StaticArray(T* originalArray, size_t arrayLength) : capacity(arrayLength), data(originalArray), insertIndex(arrayLength) {}
+	StaticArray(size_t capacity, T* originalArray, size_t arrayLength) : capacity(capacity), data(originalArray), insertIndex(arrayLength) {}
+	StaticArray(size_t capacity) : capacity(capacity)
 	{
-		myArray = (T*)malloc(sizeof(T) * capacity);
+		data = (T*)malloc(sizeof(T) * capacity);
 	}
 	~StaticArray()
 	{
-		free(myArray);
+		free(data);
 		cout << "\nStaticArray 소멸\n";
 	}
-	T& operator[](int index)
+	T& operator[](size_t index)
 	{
 		if (index < 0 || index >= insertIndex)
 		{
@@ -207,7 +191,7 @@ public:
 		}
 		else
 		{
-			return myArray[index];
+			return data[index];
 		}
 	}
 	/// <summary>
@@ -216,15 +200,7 @@ public:
 	/// <returns></returns>
 	T PopByValue()
 	{
-		if (insertIndex <= 0)
-		{
-			ThrowOutOfRange;
-		}
-		else
-		{
-			insertIndex--;
-			return myArray[insertIndex];
-		}
+		return Pop();
 	}
 	T& Pop()
 	{
@@ -235,21 +211,14 @@ public:
 		else
 		{
 			insertIndex--;
-			return myArray[insertIndex];
+			return data[insertIndex];
 		}
 	}
 	template<typename... Args>
 	void AddByArgs(const Args... args)
 	{
-		if (insertIndex > capacity)
-		{
-			ThrowOutOfRange;
-		}
-		else
-		{
-			myArray[insertIndex] = T(args...);
-			insertIndex++;
-		}
+		T element = T(args...);
+		Add(element);
 	}
 	/// <summary>
 	/// 총 두 번의 값복사가 일어납니다.
@@ -258,12 +227,7 @@ public:
 	/// <param name="element"></param>
 	void AddByValue(const T element)
 	{
-		if (insertIndex >= capacity)
-		{
-			ThrowOutOfRange;
-		}
-		myArray[insertIndex] = element;
-		insertIndex++;
+		Add(element);
 	}
 	/// <summary>
 	/// 대입 연산자 정의에 따라 값복사 일어남.
@@ -275,31 +239,31 @@ public:
 		{
 			ThrowOutOfRange;
 		}
-		myArray[insertIndex] = element;
+		data[insertIndex] = element;
 		insertIndex++;
 	}
 	void Clear()
 	{
 		insertIndex = 0;
 	}
-	int GetCount()
+	size_t GetCount()
 	{
 		return insertIndex;
 	}
-	int GetCapacity()
+	size_t GetCapacity()
 	{
 		return capacity;
 	}
 protected:
-	int insertIndex = 0;
-	int capacity;
-	T* myArray;
+	size_t insertIndex = 0;
+	size_t capacity;
+	T* data;
 };
 
 class DynamicString : public DynamicArray<char>
 {
 public:
-	DynamicString(int capacity) : DynamicArray<char>(capacity) {}
+	DynamicString(size_t capacity) : DynamicArray<char>(capacity) {}
 	~DynamicString()
 	{
 		cout << "\nDynamicString 소멸\n";
@@ -327,17 +291,17 @@ public:
 	}
 	char& GetNewCharInHeap()
 	{
-		int count = this->GetCount();
+		size_t count = this->GetCount();
 		char* charArray = new char[count];
-		for (int i = 0; i < count; i++)
+		for (size_t i = 0; i < count; i++)
 		{
 			charArray[i] = (*this)[i];
 		}
 		return *charArray;
 	}
-	void CopyChar(char* target, int length)
+	void CopyChar(char* target, size_t length)
 	{
-		for (int i = 0; i < length; i++)
+		for (size_t i = 0; i < length; i++)
 		{
 			target[i] = (*this)[i];
 		}
@@ -348,11 +312,11 @@ class StaticString : public StaticArray<char>
 {
 public:
 	//\0 때문에 혹시 실수할까봐 붙여준 상수 +1
-	StaticString(const char* string, int capacity) : StaticArray<char>(capacity + 1)
+	StaticString(const char* string, size_t capacity) : StaticArray<char>(capacity + 1)
 	{
 		Append(string);
 	}
-	StaticString(int capacity) : StaticArray<char>(capacity) {}
+	StaticString(size_t capacity) : StaticArray<char>(capacity) {}
 	~StaticString()
 	{
 		cout << "\nStaticString 소멸\n";
@@ -388,25 +352,25 @@ public:
 	}
 	char* GetNewCharInHeap()
 	{
-		int count = this->GetCount();
+		size_t count = this->GetCount();
 		char* charArray = new char[count];
-		for (int i = 0; i < count; i++)
+		for (size_t i = 0; i < count; i++)
 		{
 			charArray[i] = (*this)[i];
 		}
 		return charArray;
 	}
-	void CopyChar(char* target, int length)
+	void CopyChar(char* target, size_t length)
 	{
-		for (int i = 0; i < length; i++)
+		for (size_t i = 0; i < length; i++)
 		{
 			target[i] = (*this)[i];
 		}
 	}
 	void CopyChar(char* target)
 	{
-		int count = this->GetCount();
-		for (int i = 0; i < count; i++)
+		size_t count = this->GetCount();
+		for (size_t i = 0; i < count; i++)
 		{
 			target[i] = (*this)[i];
 		}
@@ -417,7 +381,7 @@ template<typename T>
 class DynamicStack : public DynamicArray<T>
 {
 public:
-	DynamicStack(int capacity) : DynamicArray<T>(capacity) {};
+	DynamicStack(size_t capacity) : DynamicArray<T>(capacity) {};
 	~DynamicStack()
 	{
 		cout << "\nStack 소멸\n";
@@ -455,10 +419,62 @@ public:
 };
 
 template<typename T>
+class StaticStack : public StaticArray<T>
+{
+public:
+	StaticStack(size_t capacity) : StaticArray<T>(capacity) {};
+	~StaticStack()
+	{
+		cout << "\nStack 소멸\n";
+	};
+	void Push(T& element)
+	{
+		this->Add(element);
+	}
+	void PushByValue(T element)
+	{
+		this->Add(element);
+	}
+	bool IsEmpty()
+	{
+		if (this->GetCount() == 0)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	T* TopPointer()
+	{
+		if (this->GetCount() > 0)
+		{
+			return (*this)[this->GetCount() - 1];
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+	T TopByValue()
+	{
+		if (this->GetCount() > 0)
+		{
+			return (*this)[this->GetCount() - 1];
+		}
+		else
+		{
+			return 0;
+		}
+	}
+};
+
+template<typename T>
 class StaticQueue
 {
 public:
-	StaticQueue(int length)
+	StaticQueue(size_t length)
 	{
 		this->length = length;
 		data = (T*)malloc(sizeof(T) * length);
@@ -511,32 +527,98 @@ public:
 			return false;
 		}
 	}
-	int GetLength()
+	size_t GetLength()
 	{
 		return length;
 	}
-	int GetCount()
+	size_t GetCount()
 	{
 		return count;
 	}
-	int GetNextIndex(int currentIndex)
+	size_t GetNextIndex(size_t currentIndex)
 	{
 		return (currentIndex + 1) % length;
 	}
 private:
-	int length;
-	int count = 0;
-	int dequeueIndex = 0;
-	int enqueueIndex = 0;
+	size_t length;
+	size_t count = 0;
+	size_t dequeueIndex = 0;
+	size_t enqueueIndex = 0;
 	T* data;
 };
 
 template<typename T>
-class DynamicInfiniteQueue : public DynamicArray<T>
+class DynamicQueue
 {
 public:
-	DynamicInfiniteQueue(int capacity) : DynamicArray<T>(capacity) {}
-	~DynamicInfiniteQueue()
+	DynamicQueue(size_t capacity) : capacity(capacity)
+	{
+		arrayBlocks.emplace_back(capacity);
+	}
+	~DynamicQueue()
+	{
+		cout << "\nDynamicQueue 소멸\n";
+	}
+	void Enqueue(T& value)
+	{
+		if (enqueueIndexInBlock >= capacity)
+		{
+			arrayBlocks.emplace_back(capacity);
+			enqueueIndexInBlock = 0;
+		}
+		arrayBlocks.back()[enqueueIndexInBlock] = value;
+		enqueueIndexInBlock++;
+		count++;
+	}
+	void EnqueueByValue(T value)
+	{
+		Enqueue(value);
+	}
+	T& Dequeue()
+	{
+		if (dequeueIndexInBlock >= capacity)
+		{
+			arrayBlocks.pop_front();
+			dequeueIndexInBlock = 0;
+		}
+		T& value = arrayBlocks.front()[dequeueIndexInBlock];
+		dequeueIndexInBlock++;
+		count--;
+		return value;
+	}
+	T DequeueByValue()
+	{
+		return Dequeue();
+	}
+	bool IsEmpty()
+	{
+		if (count == 0)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	size_t GetCount()
+	{
+		return count;
+	}
+private:
+	size_t enqueueIndexInBlock = 0;
+	size_t dequeueIndexInBlock = 0;
+	size_t count = 0;
+	size_t capacity;
+	list<DynamicArrayBlock<T>> arrayBlocks;
+};
+
+template<typename T>
+class InfiniteChainQueue : public DynamicArray<T>
+{
+public:
+	InfiniteChainQueue(size_t capacity) : DynamicArray<T>(capacity) {}
+	~InfiniteChainQueue()
 	{
 		cout << "\nDynamicInfiniteQueue 소멸\n";
 	}
@@ -547,17 +629,6 @@ public:
 	void EnqueueByValue(T value)
 	{
 		this->Add(value);
-	}
-	bool IsEmpty()
-	{
-		if (dequeueIndex == this->insertIndex)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
 	}
 	T DequeueByValue()
 	{
@@ -571,121 +642,208 @@ public:
 		dequeueIndex++;
 		return value;
 	}
+	bool IsEmpty()
+	{
+		if (dequeueIndex == this->insertIndex)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
 private:
-	int dequeueIndex = 0;
+	size_t dequeueIndex = 0;
 };
 
-class alignas(64) MemoryPool
+//class alignas(CacheLineSize) DynamicHeapMemoryPool
+//{
+//public:
+//	DynamicHeapMemoryPool()
+//	{
+//
+//	}
+//	~DynamicHeapMemoryPool()
+//	{
+//
+//	}
+//private:
+//	mutex lock;
+//	size_t interval;
+//	list<StaticHeapMemoryPool> 
+//};
+
+class alignas(CacheLineSize) HeapMemoryPool
 {
 public:
 	//Alloc은 최대한 64의 배수로
-	MemoryPool(int size) :
-		size(size)
-		, basePointer((byte*)malloc(size))
+	HeapMemoryPool(size_t interval, size_t count) :
+		interval(interval)
+		, basePTR((byte*)malloc(interval * count))
+		, indexStack(count)
 	{
-		cout << "\nManagedHeap 생성\n";
+		FillNumber();
+		cout << "\nMemoryPool 생성\n";
 	}
-	~MemoryPool()
+	~HeapMemoryPool()
 	{
-		cout << "\nManagedHeap 소멸\n";
-		free(basePointer);
+		cout << "\nMemoryPool 소멸\n";
+		free(basePTR);
 	}
-	//2바이트 얼라 하기도 하고 4바이트 얼라 하기도 하기때문에 얼라 필요함
-	template<typename T>
-	T* Malloc(int size)
+	void* Malloc()
 	{
-		T* ptr = (T*)(basePointer + insertOffset);
-		insertOffset += size;
-		return ptr;
+		return (basePTR + (indexStack.Pop() * interval));
 	}
-	template<typename T>
-	T* GetPTR(int startOffset)
+	void Free(void* ptr)
 	{
-		return (T*)(basePointer + startOffset);
+		indexStack.PushByValue(GetIndex((byte*)ptr));
 	}
-	template<typename T>
-	T* MallocWithLock(int size)
+	size_t GetIndex(byte* ptr)
 	{
-		unique_lock<mutex> mutexLock(lock);
-		return Malloc<T>(size);
-	}
-	template<typename T>
-	void SetValue(int startOffset, T value)
-	{
-		*(T*)(basePointer + startOffset) = value;
-	}
-	template<typename T>
-	void SetValueWithLock(int startOffset, T value)
-	{
-		unique_lock<mutex> mutexLock(lock);
-		SetValue<T>(startOffset, value);
-	}
-	template<typename T>
-	T GetValue(int startOffset)
-	{
-		return *(T*)(basePointer + startOffset);
-	}
-	template<typename T>
-	T GetValueWithLock(int startOffset)
-	{
-		unique_lock<mutex> mutexLock(lock);
-		return GetValueWithLock<T>(startOffset);
+		return ((size_t)ptr - (size_t)basePTR) / interval;
 	}
 	void Clear()
 	{
-		insertOffset = 0;
+		FillNumber();
 	}
-	void operator=(const MemoryPool& source)
+	void operator=(const HeapMemoryPool& source)
 	{
-		basePointer = source.basePointer;
-		size = source.size;
-		insertOffset = source.insertOffset;
+		basePTR = source.basePTR;
+		interval = source.interval;
+	}
+	bool IsEmpty()
+	{
+		return indexStack.IsEmpty();
 	}
 private:
 	mutex lock;
-	int insertOffset = 0;
-	int size = 0;
-	byte* basePointer = nullptr;
+	size_t interval;
+	StaticStack<size_t> indexStack;
+	byte* basePTR = nullptr;
+	void FillNumber()
+	{
+		size_t count = indexStack.GetCapacity();
+		for (size_t i = 0; i < count; i++)
+		{
+			indexStack.PushByValue(count - i - 1);
+		}
+	}
+};
+
+class alignas(CacheLineSize) StackMemoryPool
+{
+public:
+	//Alloc은 최대한 64의 배수로
+	StackMemoryPool(size_t size) :
+		size(size)
+		, basePTR((byte*)malloc(size))
+	{
+		cout << "\nStackMemoryPool 생성\n";
+	}
+	~StackMemoryPool()
+	{
+		cout << "\nStackMemoryPool 소멸\n";
+		free(basePTR);
+	}
+	template<typename T>
+	T* Malloc(size_t count)
+	{
+		size_t initAvailableSize = size - reservedSize;
+		size_t postAvailableSize = initAvailableSize;
+		size_t mallocSize = sizeof(T) * count;
+		void* ptr = (void*)(basePTR + reservedSize);
+		if (align(alignof(T), mallocSize, ptr, postAvailableSize))
+		{
+			size_t padding = initAvailableSize - postAvailableSize;
+			reservedSize += mallocSize + padding;
+			return (T*)ptr;
+		}
+		else
+		{
+			ThrowOutOfRange;
+		}
+	}
+	template<typename T>
+	T* MallocWithLock(size_t count)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		Malloc(count);
+	}
+	template<typename T>
+	void SetValue(T* ptr, T value)
+	{
+		*ptr = value;
+	}
+	template<typename T>
+	void SetValueWithLock(T* ptr, T value)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		SetValue(ptr, value);
+	}
+	template<typename T>
+	T GetValue(T* ptr)
+	{
+		return *ptr;
+	}
+	template<typename T>
+	T GetValueWithLock(T* ptr)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		return GetValue(ptr);
+	}
+	void Clear()
+	{
+		reservedSize = 0;
+	}
+	void operator=(const StackMemoryPool& source)
+	{
+		basePTR = source.basePTR;
+		size = source.size;
+		reservedSize = source.reservedSize;
+	}
+private:
+	mutex lock;
+	size_t reservedSize = 0;
+	size_t size = 0;
+	byte* basePTR = nullptr;
 };
 
 class ThreadPool
 {
 public:
-	ThreadPool(int threadsCount, int queueCapacity, int sharedMemorySize, int threadPrivateMemorySize) :
-		  threadsCount(threadsCount)
+	ThreadPool(size_t threadsCount, size_t queueCapacity, size_t sharedMemorySize, size_t threadPrivateMemorySize) :
+		threadsCount(threadsCount)
 		, runningThreadCount(threadsCount)
 		, taskQueue(queueCapacity)
 		, sharedMemory(sharedMemorySize)
 		, workerThreads((thread*)malloc(sizeof(thread)* threadsCount))
-		, threadPrivateMemory((MemoryPool*)malloc(sizeof(MemoryPool) * threadsCount))
+		, threadPrivateMemory((StackMemoryPool*)malloc(sizeof(StackMemoryPool)* threadsCount))
 	{
-		for (int i = 0; i < threadsCount; i++)
+		for (size_t i = 0; i < threadsCount; i++)
 		{
 			new (workerThreads + i) thread([i, this]() { this->Work(i); });
-			new (threadPrivateMemory + i) MemoryPool(threadPrivateMemorySize);
+			new (threadPrivateMemory + i) StackMemoryPool(threadPrivateMemorySize);
 		}
 	}
 	~ThreadPool()
 	{
 		WaitAllThread(true);
-		for (int i = 0; i < threadsCount; i++)
+		for (size_t i = 0; i < threadsCount; i++)
 		{
 			workerThreads[i].~thread();
 		}
 		free(workerThreads);
-		for (int i = 0; i < threadsCount; i++)
+		for (size_t i = 0; i < threadsCount; i++)
 		{
-			threadPrivateMemory[i].~MemoryPool();
+			threadPrivateMemory[i].~StackMemoryPool();
 		}
 		free(threadPrivateMemory);
 		cout << "\nThreadPool 소멸\n";
 	}
 	void WaitAllThread(bool andStop)
 	{
-		while (!taskQueue.IsEmpty())
-		{
-			cv.notify_all();
-		}
+		while (!taskQueue.IsEmpty()) {}
 		//큐에 Enqueue하는거는 오직 메인 쓰레드에서만 이뤄지고 현재 waitAllThread 함수 또한 메인 쓰레드에서만 호출됨.
 		//따라서 Enqueue 와 현재 함수 사이의 순서 관계가 보장이 됨.
 		//그래서 Empty 상태라면 큐에 있던 모든 테스크들은 이미 쓰레드들이 Dequeue해갔다는 뜻임.
@@ -698,7 +856,7 @@ public:
 				{
 					stopAll = true;
 					cv.notify_all();
-					for (int i = 0; i < threadsCount; i++)
+					for (size_t i = 0; i < threadsCount; i++)
 					{
 						workerThreads[i].join();
 					}
@@ -707,7 +865,7 @@ public:
 			}
 		}
 	}
-	void EnqueueTask(void(*task)(int, ThreadPool*))
+	void EnqueueTask(void(*task)(size_t, ThreadPool*))
 	{
 		{
 			unique_lock<mutex> mutexLock(lock);
@@ -715,22 +873,21 @@ public:
 		}
 		cv.notify_one();
 	}
-	MemoryPool sharedMemory;
-	MemoryPool* threadPrivateMemory;
+	StackMemoryPool sharedMemory;
+	StackMemoryPool* threadPrivateMemory;
 private:
-	DynamicInfiniteQueue<void(*)(int, ThreadPool*)> taskQueue;
+	DynamicQueue<void(*)(size_t, ThreadPool*)> taskQueue;
 	thread* workerThreads;
-	int threadsCount;
+	size_t threadsCount;
 	condition_variable cv;
 	mutex lock;
-	//각각의 쓰레드마다의 플래그를 만들어놓고 64byte alignment를 하는게 성능상 더 이득이지 않을까?
-	int runningThreadCount;
+	size_t runningThreadCount;
 	bool stopAll = false;
-	void Work(int threadIndex)
+	void Work(size_t threadIndex)
 	{
 		while (true)
 		{
-			void(*task)(int, ThreadPool*) = nullptr;
+			void(*task)(size_t, ThreadPool*) = nullptr;
 			{
 				unique_lock<mutex> mutexLock(lock);
 				while (taskQueue.IsEmpty())
@@ -748,4 +905,28 @@ private:
 			task(threadIndex, this);
 		}
 	}
+};
+
+struct alignas(CacheLineSize) Flag
+{
+public:
+	bool value;
+	void operator=(const Flag& sourceFlag)
+	{
+		this->value = sourceFlag.value;
+	}
+	void operator=(bool value)
+	{
+		this->value = value;
+	}
+	operator bool() const
+	{
+		return value;
+	}
+	Flag()
+	{
+		value = false;
+	}
+	Flag(bool value) : value(value) {}
+	Flag(const Flag& sourceFlag) : value(sourceFlag.value) {}
 };
