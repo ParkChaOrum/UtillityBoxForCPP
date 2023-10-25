@@ -756,13 +756,24 @@ public:
 		}
 		return ((*blocksIterator).MallocByByte() + HeaderSize);
 	}
+	void* MallocWithLock()
+	{
+		unique_lock<mutex> mutexLock(lock);
+		return Malloc();
+	}
 	void Free(void* ptr)
 	{
 		byte* startPTR = (byte*)ptr - HeaderSize;
 		size_t blockIndex = *(size_t*)startPTR;
 		GetMemoryBlock(blockIndex).Free(startPTR);
 	}
+	void FreeWithLock(void* ptr)
+	{
+		unique_lock<mutex> mutexLock(lock);
+		Free(ptr);
+	}
 private:
+	mutex lock;
 	size_t interval;
 	size_t capacity;
 	list<StaticHeapMemoryPool> memoryBlocks;
@@ -883,13 +894,15 @@ private:
 class ThreadPool
 {
 public:
-	ThreadPool(size_t threadsCount, size_t queueCapacity, size_t sharedMemorySize, size_t threadPrivateMemorySize) :
+	ThreadPool(size_t threadsCount, size_t queueCapacity, size_t sharedMemorySize, size_t threadPrivateMemorySize, size_t interval, size_t capacity) :
 		threadsCount(threadsCount)
 		, runningThreadCount(threadsCount)
 		, taskQueue(queueCapacity)
 		, sharedMemory(sharedMemorySize)
 		, workerThreads((thread*)malloc(sizeof(thread)* threadsCount))
 		, threadPrivateMemory((StackMemoryPool*)malloc(sizeof(StackMemoryPool)* threadsCount))
+		, captureMemory(interval, capacity)
+		, captureQueue(queueCapacity)
 	{
 		for (size_t i = 0; i < threadsCount; i++)
 		{
@@ -936,18 +949,21 @@ public:
 			}
 		}
 	}
-	void EnqueueTask(void(*task)(size_t, ThreadPool*))
+	void EnqueueTask(void(*task)(size_t, ThreadPool*, void*), void* capturePTR)
 	{
 		{
 			unique_lock<mutex> mutexLock(lock);
 			taskQueue.Enqueue(task);
+			captureQueue.Enqueue(capturePTR);
 		}
 		cv.notify_one();
 	}
 	StackMemoryPool sharedMemory;
 	StackMemoryPool* threadPrivateMemory;
+	DynamicHeapMemoryPool captureMemory;
 private:
-	DynamicQueue<void(*)(size_t, ThreadPool*)> taskQueue;
+	DynamicQueue<void(*)(size_t, ThreadPool*, void*)> taskQueue;
+	DynamicQueue<void*> captureQueue;
 	thread* workerThreads;
 	size_t threadsCount;
 	condition_variable cv;
@@ -958,7 +974,8 @@ private:
 	{
 		while (true)
 		{
-			void(*task)(size_t, ThreadPool*) = nullptr;
+			void(*task)(size_t, ThreadPool*, void*) = nullptr;
+			void* capturePTR = nullptr;
 			{
 				unique_lock<mutex> mutexLock(lock);
 				while (taskQueue.IsEmpty())
@@ -972,8 +989,13 @@ private:
 					}
 				}
 				task = taskQueue.Dequeue();
+				capturePTR = captureQueue.Dequeue();
 			}
-			task(threadIndex, this);
+			task(threadIndex, this, capturePTR);
+			if (capturePTR != nullptr)
+			{
+				captureMemory.FreeWithLock(capturePTR);
+			}
 		}
 	}
 };
