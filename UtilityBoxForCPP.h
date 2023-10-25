@@ -4,6 +4,7 @@
 #include <list>
 #include <condition_variable>
 #include <mutex>
+#include <functional>
 #include <thread>
 #define CacheLineSize 64
 #define ThrowOutOfRange throw exception("Index is out of range.");
@@ -446,6 +447,17 @@ public:
 			return false;
 		}
 	}
+	bool IsFull()
+	{
+		if (this->GetCount() == this->capacity)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
 	T* TopPointer()
 	{
 		if (this->GetCount() > 0)
@@ -657,41 +669,28 @@ private:
 	size_t dequeueIndex = 0;
 };
 
-//class alignas(CacheLineSize) DynamicHeapMemoryPool
-//{
-//public:
-//	DynamicHeapMemoryPool()
-//	{
-//
-//	}
-//	~DynamicHeapMemoryPool()
-//	{
-//
-//	}
-//private:
-//	mutex lock;
-//	size_t interval;
-//	list<StaticHeapMemoryPool> 
-//};
-
-class alignas(CacheLineSize) HeapMemoryPool
+class alignas(CacheLineSize) StaticHeapMemoryPool
 {
 public:
 	//Alloc은 최대한 64의 배수로
-	HeapMemoryPool(size_t interval, size_t count) :
+	StaticHeapMemoryPool(size_t interval, size_t count) :
 		interval(interval)
-		, basePTR((byte*)malloc(interval * count))
+		, basePTR((byte*)malloc(interval* count))
 		, indexStack(count)
 	{
-		FillNumber();
+		ResetStack();
 		cout << "\nMemoryPool 생성\n";
 	}
-	~HeapMemoryPool()
+	~StaticHeapMemoryPool()
 	{
 		cout << "\nMemoryPool 소멸\n";
 		free(basePTR);
 	}
 	void* Malloc()
+	{
+		return (basePTR + (indexStack.Pop() * interval));
+	}
+	byte* MallocByByte()
 	{
 		return (basePTR + (indexStack.Pop() * interval));
 	}
@@ -705,28 +704,100 @@ public:
 	}
 	void Clear()
 	{
-		FillNumber();
+		ResetStack();
 	}
-	void operator=(const HeapMemoryPool& source)
-	{
-		basePTR = source.basePTR;
-		interval = source.interval;
-	}
-	bool IsEmpty()
+	bool IndexStackIsEmpty()
 	{
 		return indexStack.IsEmpty();
+	}
+	byte* GetBasePTR()
+	{
+		return basePTR;
 	}
 private:
 	mutex lock;
 	size_t interval;
 	StaticStack<size_t> indexStack;
 	byte* basePTR = nullptr;
-	void FillNumber()
+	void ResetStack()
 	{
 		size_t count = indexStack.GetCapacity();
 		for (size_t i = 0; i < count; i++)
 		{
 			indexStack.PushByValue(count - i - 1);
+		}
+	}
+};
+
+#define HeaderSize 4
+class alignas(CacheLineSize) DynamicHeapMemoryPool
+{
+public:
+	//Without header
+	DynamicHeapMemoryPool(size_t interval, size_t capacity) : interval(interval + HeaderSize), capacity(capacity)
+	{
+		EmplaceNewMemBlock();
+	}
+	~DynamicHeapMemoryPool()
+	{
+		cout << "\nDynamicHeapMemoryPool 소멸" << endl;
+	}
+	void* Malloc()
+	{
+		list<StaticHeapMemoryPool>::iterator blocksIterator = memoryBlocks.begin();
+		while ((*blocksIterator).IndexStackIsEmpty())
+		{
+			blocksIterator++;
+			if (blocksIterator == memoryBlocks.end())
+			{
+				EmplaceNewMemBlock();
+				return (memoryBlocks.back().MallocByByte() + HeaderSize);
+			}
+		}
+		return ((*blocksIterator).MallocByByte() + HeaderSize);
+	}
+	void Free(void* ptr)
+	{
+		byte* startPTR = (byte*)ptr - HeaderSize;
+		size_t blockIndex = *(size_t*)startPTR;
+		GetMemoryBlock(blockIndex).Free(startPTR);
+	}
+private:
+	size_t interval;
+	size_t capacity;
+	list<StaticHeapMemoryPool> memoryBlocks;
+	void EmplaceNewMemBlock()
+	{
+		memoryBlocks.emplace_back(interval, capacity);
+		ResetHeader(memoryBlocks.size() - 1, memoryBlocks.back().GetBasePTR());
+	}
+	void ResetHeader(size_t headerNumber, byte* basePTR)
+	{
+		for (size_t i = 0; i < capacity; i++)
+		{
+			*(size_t*)(basePTR + (interval * i)) = headerNumber;
+		}
+	}
+	StaticHeapMemoryPool& GetMemoryBlock(size_t blockIndex)
+	{
+		if (blockIndex < (memoryBlocks.size() / 2))
+		{
+			typename list<StaticHeapMemoryPool>::iterator forwardIterator = memoryBlocks.begin();
+			for (size_t i = 0; i < blockIndex; i++)
+			{
+				forwardIterator++;
+			}
+			return *forwardIterator;
+		}
+		else
+		{
+			typename list<StaticHeapMemoryPool>::reverse_iterator backwardIterator = memoryBlocks.rbegin();
+			size_t loopCount = memoryBlocks.size() - blockIndex - 1;
+			for (size_t i = 0; i < loopCount; i++)
+			{
+				backwardIterator++;
+			}
+			return *backwardIterator;
 		}
 	}
 };
