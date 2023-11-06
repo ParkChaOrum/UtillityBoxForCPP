@@ -178,6 +178,7 @@ public:
 	StaticArray(size_t capacity) : capacity(capacity)
 	{
 		data = (T*)malloc(sizeof(T) * capacity);
+		cout << "\nStaticArray 积己\n";
 	}
 	~StaticArray()
 	{
@@ -255,6 +256,32 @@ public:
 	{
 		return capacity;
 	}
+	StaticArray(StaticArray<T>& source)
+	{
+		cout << "\nStaticArray 汗荤 积己\n";
+		insertIndex = source.insertIndex;
+		capacity = source.capacity;
+		data = (T*)malloc(sizeof(T) * capacity);
+		for (size_t i = 0; i < source.insertIndex; i++)
+		{
+			(*this)[i] = source[i];
+		}
+	}
+	void operator=(StaticArray<T>& source)
+	{
+		cout << "\nStaticArray 措涝\n";
+		insertIndex = source.insertIndex;
+		capacity = source.capacity;
+		if (data != nullptr)
+		{
+			free(data);
+		}
+		data = (T*)malloc(sizeof(T) * capacity);
+		for (size_t i = 0; i < source.insertIndex; i++)
+		{
+			(*this)[i] = source[i];
+		}
+	}
 protected:
 	size_t insertIndex = 0;
 	size_t capacity;
@@ -321,6 +348,30 @@ public:
 	~StaticString()
 	{
 		cout << "\nStaticString 家戈\n";
+	}
+	void Append(DynamicString& string)
+	{
+		if (this->GetCount() > 0)
+		{
+			this->Pop();
+		}
+		for (size_t i = 0; string[i] != '\0'; i++)
+		{
+			this->Add(string[i]);
+		}
+		this->Add('\0');
+	}
+	void Append(StaticString& string)
+	{
+		if (this->GetCount() > 0)
+		{
+			this->Pop();
+		}
+		for (size_t i = 0; string[i] != '\0'; i++)
+		{
+			this->Add(string[i]);
+		}
+		this->Add('\0');
 	}
 	void Append(const char* string)
 	{
@@ -729,7 +780,7 @@ private:
 	}
 };
 
-#define HeaderSize 4
+#define HeaderSize 8
 class alignas(CacheLineSize) DynamicHeapMemoryPool
 {
 public:
@@ -894,14 +945,14 @@ private:
 class ThreadPool
 {
 public:
-	ThreadPool(size_t threadsCount, size_t queueCapacity, size_t sharedMemorySize, size_t threadPrivateMemorySize, size_t interval, size_t capacity) :
+	ThreadPool(size_t threadsCount, size_t queueCapacity, size_t sharedMemorySize, size_t threadPrivateMemorySize, size_t captureMemoryInterval, size_t captureMemoryCapacity) :
 		threadsCount(threadsCount)
 		, runningThreadCount(threadsCount)
 		, taskQueue(queueCapacity)
 		, sharedMemory(sharedMemorySize)
 		, workerThreads((thread*)malloc(sizeof(thread)* threadsCount))
 		, threadPrivateMemory((StackMemoryPool*)malloc(sizeof(StackMemoryPool)* threadsCount))
-		, captureMemory(interval, capacity)
+		, captureMemory(captureMemoryInterval, captureMemoryCapacity)
 		, captureQueue(queueCapacity)
 	{
 		for (size_t i = 0; i < threadsCount; i++)
@@ -912,7 +963,10 @@ public:
 	}
 	~ThreadPool()
 	{
-		WaitAllThread(true);
+		if (!stopAll)
+		{
+			WaitAllThread(true);
+		}
 		for (size_t i = 0; i < threadsCount; i++)
 		{
 			workerThreads[i].~thread();
@@ -968,7 +1022,7 @@ private:
 	size_t threadsCount;
 	condition_variable cv;
 	mutex lock;
-	size_t runningThreadCount;
+	atomic_size_t runningThreadCount;
 	bool stopAll = false;
 	void Work(size_t threadIndex)
 	{
