@@ -4,6 +4,7 @@
 #include <list>
 #include <condition_variable>
 #include <mutex>
+#include <functional>
 #include <thread>
 #define CacheLineSize 64
 #define ThrowOutOfRange throw exception("Index is out of range.");
@@ -22,7 +23,7 @@ public:
 	~DynamicArrayBlock()
 	{
 		free(data);
-		cout << "\nDynamicBlock ì†Œë©¸ \n";
+		cout << "\nDynamicBlock ¼Ò¸ê \n";
 	}
 	T& operator[](size_t index)
 	{
@@ -51,14 +52,14 @@ public:
 	DynamicArray(size_t capacity) : capacity(capacity) {}
 	~DynamicArray()
 	{
-		cout << "\nDynamicArray ì†Œë©¸ \n";
+		cout << "\nDynamicArray ¼Ò¸ê \n";
 	}
 	size_t GetCount()
 	{
 		return insertIndex;
 	}
 	/// <summary>
-	/// ìµœëŒ€í•œ Popì„ ì´ìš©í•´ì£¼ì„¸ìš”.
+	/// ÃÖ´ëÇÑ PopÀ» ÀÌ¿ëÇØÁÖ¼¼¿ä.
 	/// </summary>
 	/// <returns></returns>
 	T PopByValue()
@@ -88,8 +89,8 @@ public:
 		Add(element);
 	}
 	/// <summary>
-	/// ì´ ë‘ ë²ˆì˜ ê°’ë³µì‚¬ê°€ ì¼ì–´ë‚©ë‹ˆë‹¤.
-	/// ìµœëŒ€í•œ Add í•¨ìˆ˜ë¥¼ ì´ìš©í•´ì£¼ì„¸ìš”.
+	/// ÃÑ µÎ ¹øÀÇ °ªº¹»ç°¡ ÀÏ¾î³³´Ï´Ù.
+	/// ÃÖ´ëÇÑ Add ÇÔ¼ö¸¦ ÀÌ¿ëÇØÁÖ¼¼¿ä.
 	/// </summary>
 	/// <param name="element"></param>
 	void AddByValue(const T element)
@@ -97,7 +98,7 @@ public:
 		Add(element);
 	}
 	/// <summary>
-	/// ëŒ€ì… ì—°ì‚°ì ì •ì˜ì— ë”°ë¼ ê°’ë³µì‚¬ ì¼ì–´ë‚¨.
+	/// ´ëÀÔ ¿¬»êÀÚ Á¤ÀÇ¿¡ µû¶ó °ªº¹»ç ÀÏ¾î³².
 	/// </summary>
 	/// <param name="element"></param>
 	void Add(const T& element)
@@ -177,12 +178,12 @@ public:
 	StaticArray(size_t capacity) : capacity(capacity)
 	{
 		data = (T*)malloc(sizeof(T) * capacity);
-		cout << "\nStaticArray ìƒì„±\n";
+		cout << "\nStaticArray »ı¼º\n";
 	}
 	~StaticArray()
 	{
 		free(data);
-		cout << "\nStaticArray ì†Œë©¸\n";
+		cout << "\nStaticArray ¼Ò¸ê\n";
 	}
 	T& operator[](size_t index)
 	{
@@ -196,7 +197,7 @@ public:
 		}
 	}
 	/// <summary>
-	/// ìµœëŒ€í•œ Popì„ ì´ìš©í•´ì£¼ì„¸ìš”.
+	/// ÃÖ´ëÇÑ PopÀ» ÀÌ¿ëÇØÁÖ¼¼¿ä.
 	/// </summary>
 	/// <returns></returns>
 	T PopByValue()
@@ -222,8 +223,8 @@ public:
 		Add(element);
 	}
 	/// <summary>
-	/// ì´ ë‘ ë²ˆì˜ ê°’ë³µì‚¬ê°€ ì¼ì–´ë‚©ë‹ˆë‹¤.
-	/// ìµœëŒ€í•œ Add í•¨ìˆ˜ë¥¼ ì´ìš©í•´ì£¼ì„¸ìš”.
+	/// ÃÑ µÎ ¹øÀÇ °ªº¹»ç°¡ ÀÏ¾î³³´Ï´Ù.
+	/// ÃÖ´ëÇÑ Add ÇÔ¼ö¸¦ ÀÌ¿ëÇØÁÖ¼¼¿ä.
 	/// </summary>
 	/// <param name="element"></param>
 	void AddByValue(const T element)
@@ -231,7 +232,7 @@ public:
 		Add(element);
 	}
 	/// <summary>
-	/// ëŒ€ì… ì—°ì‚°ì ì •ì˜ì— ë”°ë¼ ê°’ë³µì‚¬ ì¼ì–´ë‚¨.
+	/// ´ëÀÔ ¿¬»êÀÚ Á¤ÀÇ¿¡ µû¶ó °ªº¹»ç ÀÏ¾î³².
 	/// </summary>
 	/// <param name="element"></param>
 	void Add(const T& element)
@@ -257,7 +258,7 @@ public:
 	}
 	StaticArray(StaticArray<T>& source)
 	{
-		cout << "\nStaticArray ë³µì‚¬ ìƒì„±\n";
+		cout << "\nStaticArray º¹»ç »ı¼º\n";
 		insertIndex = source.insertIndex;
 		capacity = source.capacity;
 		data = (T*)malloc(sizeof(T) * capacity);
@@ -268,7 +269,7 @@ public:
 	}
 	void operator=(StaticArray<T>& source)
 	{
-		cout << "\nStaticArray ëŒ€ì…\n";
+		cout << "\nStaticArray ´ëÀÔ\n";
 		insertIndex = source.insertIndex;
 		capacity = source.capacity;
 		if (data != nullptr)
@@ -293,7 +294,7 @@ public:
 	DynamicString(size_t capacity) : DynamicArray<char>(capacity) {}
 	~DynamicString()
 	{
-		cout << "\nDynamicString ì†Œë©¸\n";
+		cout << "\nDynamicString ¼Ò¸ê\n";
 	}
 	void Append(const char* string)
 	{
@@ -338,7 +339,7 @@ public:
 class StaticString : public StaticArray<char>
 {
 public:
-	//\0 ë•Œë¬¸ì— í˜¹ì‹œ ì‹¤ìˆ˜í• ê¹Œë´ ë¶™ì—¬ì¤€ ìƒìˆ˜ +1
+	//\0 ¶§¹®¿¡ È¤½Ã ½Ç¼öÇÒ±îºÁ ºÙ¿©ÁØ »ó¼ö +1
 	StaticString(const char* string, size_t capacity) : StaticArray<char>(capacity + 1)
 	{
 		Append(string);
@@ -346,7 +347,7 @@ public:
 	StaticString(size_t capacity) : StaticArray<char>(capacity) {}
 	~StaticString()
 	{
-		cout << "\nStaticString ì†Œë©¸\n";
+		cout << "\nStaticString ¼Ò¸ê\n";
 	}
 	void Append(DynamicString& string)
 	{
@@ -435,7 +436,7 @@ public:
 	DynamicStack(size_t capacity) : DynamicArray<T>(capacity) {};
 	~DynamicStack()
 	{
-		cout << "\nStack ì†Œë©¸\n";
+		cout << "\nStack ¼Ò¸ê\n";
 	};
 	void Push(T& element)
 	{
@@ -476,7 +477,7 @@ public:
 	StaticStack(size_t capacity) : StaticArray<T>(capacity) {};
 	~StaticStack()
 	{
-		cout << "\nStack ì†Œë©¸\n";
+		cout << "\nStack ¼Ò¸ê\n";
 	};
 	void Push(T& element)
 	{
@@ -544,7 +545,7 @@ public:
 	~StaticQueue()
 	{
 		free(data);
-		cout << "\nStaticQueue ì†Œë©¸\n";
+		cout << "\nStaticQueue ¼Ò¸ê\n";
 	}
 	void Enqueue(T value)
 	{
@@ -619,7 +620,7 @@ public:
 	}
 	~DynamicQueue()
 	{
-		cout << "\nDynamicQueue ì†Œë©¸\n";
+		cout << "\nDynamicQueue ¼Ò¸ê\n";
 	}
 	void Enqueue(T& value)
 	{
@@ -682,7 +683,7 @@ public:
 	InfiniteChainQueue(size_t capacity) : DynamicArray<T>(capacity) {}
 	~InfiniteChainQueue()
 	{
-		cout << "\nDynamicInfiniteQueue ì†Œë©¸\n";
+		cout << "\nDynamicInfiniteQueue ¼Ò¸ê\n";
 	}
 	void Enqueue(T& value)
 	{
@@ -722,18 +723,18 @@ private:
 class alignas(CacheLineSize) StaticHeapMemoryPool
 {
 public:
-	//Allocì€ ìµœëŒ€í•œ 64ì˜ ë°°ìˆ˜ë¡œ
+	//AllocÀº ÃÖ´ëÇÑ 64ÀÇ ¹è¼ö·Î
 	StaticHeapMemoryPool(size_t interval, size_t count) :
 		interval(interval)
 		, basePTR((byte*)malloc(interval* count))
 		, indexStack(count)
 	{
 		ResetStack();
-		cout << "\nMemoryPool ìƒì„±\n";
+		cout << "\nMemoryPool »ı¼º\n";
 	}
 	~StaticHeapMemoryPool()
 	{
-		cout << "\nMemoryPool ì†Œë©¸\n";
+		cout << "\nMemoryPool ¼Ò¸ê\n";
 		free(basePTR);
 	}
 	void* Malloc()
@@ -790,7 +791,7 @@ public:
 	}
 	~DynamicHeapMemoryPool()
 	{
-		cout << "\nDynamicHeapMemoryPool ì†Œë©¸" << endl;
+		cout << "\nDynamicHeapMemoryPool ¼Ò¸ê" << endl;
 	}
 	void* Malloc()
 	{
@@ -866,16 +867,16 @@ private:
 class alignas(CacheLineSize) StackMemoryPool
 {
 public:
-	//Allocì€ ìµœëŒ€í•œ 64ì˜ ë°°ìˆ˜ë¡œ
+	//AllocÀº ÃÖ´ëÇÑ 64ÀÇ ¹è¼ö·Î
 	StackMemoryPool(size_t size) :
 		size(size)
 		, basePTR((byte*)malloc(size))
 	{
-		cout << "\nStackMemoryPool ìƒì„±\n";
+		cout << "\nStackMemoryPool »ı¼º\n";
 	}
 	~StackMemoryPool()
 	{
-		cout << "\nStackMemoryPool ì†Œë©¸\n";
+		cout << "\nStackMemoryPool ¼Ò¸ê\n";
 		free(basePTR);
 	}
 	template<typename T>
@@ -976,15 +977,15 @@ public:
 			threadPrivateMemory[i].~StackMemoryPool();
 		}
 		free(threadPrivateMemory);
-		cout << "\nThreadPool ì†Œë©¸\n";
+		cout << "\nThreadPool ¼Ò¸ê\n";
 	}
 	void WaitAllThread(bool andStop)
 	{
 		while (!taskQueue.IsEmpty()) {}
-		//íì— Enqueueí•˜ëŠ”ê±°ëŠ” ì˜¤ì§ ë©”ì¸ ì“°ë ˆë“œì—ì„œë§Œ ì´ë¤„ì§€ê³  í˜„ì¬ waitAllThread í•¨ìˆ˜ ë˜í•œ ë©”ì¸ ì“°ë ˆë“œì—ì„œë§Œ í˜¸ì¶œë¨.
-		//ë”°ë¼ì„œ Enqueue ì™€ í˜„ì¬ í•¨ìˆ˜ ì‚¬ì´ì˜ ìˆœì„œ ê´€ê³„ê°€ ë³´ì¥ì´ ë¨.
-		//ê·¸ë˜ì„œ Empty ìƒíƒœë¼ë©´ íì— ìˆë˜ ëª¨ë“  í…ŒìŠ¤í¬ë“¤ì€ ì´ë¯¸ ì“°ë ˆë“œë“¤ì´ Dequeueí•´ê°”ë‹¤ëŠ” ëœ»ì„.
-		//ì—¬ê¸°ì„œ runningThreadCount++ ëª…ë ¹ì€ Dequeue ì´ì „ì— ìœ„ì¹˜í•¨ìœ¼ë¡œ ê²°êµ­ Empty ìƒíƒœì¸ë° runningThreadCount == 0 ì´ ëë‹¤ë©´ ì‹¤ì œë¡œ í˜„ì¬ í…ŒìŠ¤í¬ë¥¼ ìˆ˜í–‰ì¤‘ì¸ ì“°ë ˆë“œëŠ” ì—†ë‹¤ëŠ” ëœ»ì„.
+		//Å¥¿¡ EnqueueÇÏ´Â°Å´Â ¿ÀÁ÷ ¸ŞÀÎ ¾²·¹µå¿¡¼­¸¸ ÀÌ·ïÁö°í ÇöÀç waitAllThread ÇÔ¼ö ¶ÇÇÑ ¸ŞÀÎ ¾²·¹µå¿¡¼­¸¸ È£ÃâµÊ.
+		//µû¶ó¼­ Enqueue ¿Í ÇöÀç ÇÔ¼ö »çÀÌÀÇ ¼ø¼­ °ü°è°¡ º¸ÀåÀÌ µÊ.
+		//±×·¡¼­ Empty »óÅÂ¶ó¸é Å¥¿¡ ÀÖ´ø ¸ğµç Å×½ºÅ©µéÀº ÀÌ¹Ì ¾²·¹µåµéÀÌ DequeueÇØ°¬´Ù´Â ¶æÀÓ.
+		//¿©±â¼­ runningThreadCount++ ¸í·ÉÀº Dequeue ÀÌÀü¿¡ À§Ä¡ÇÔÀ¸·Î °á±¹ Empty »óÅÂÀÎµ¥ runningThreadCount == 0 ÀÌ µÆ´Ù¸é ½ÇÁ¦·Î ÇöÀç Å×½ºÅ©¸¦ ¼öÇàÁßÀÎ ¾²·¹µå´Â ¾ø´Ù´Â ¶æÀÓ.
 		while (true)
 		{
 			if (runningThreadCount == 0)
