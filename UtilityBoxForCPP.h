@@ -288,54 +288,6 @@ protected:
 	T* data;
 };
 
-class DynamicString : public DynamicArray<char>
-{
-public:
-	DynamicString(size_t capacity) : DynamicArray<char>(capacity) {}
-	~DynamicString()
-	{
-		cout << "\nDynamicString ¼Ò¸ê\n";
-	}
-	void Append(const char* string)
-	{
-		if (this->GetCount() > 0)
-		{
-			this->Pop();
-		}
-		for (size_t i = 0; string[i] != '\0'; i++)
-		{
-			this->Add(string[i]);
-		}
-		this->Add('\0');
-	}
-	void Append(const char& singleChar)
-	{
-		if (this->GetCount() > 0)
-		{
-			this->Pop();
-		}
-		this->Add(singleChar);
-		this->Add('\0');
-	}
-	char& GetNewCharInHeap()
-	{
-		size_t count = this->GetCount();
-		char* charArray = new char[count];
-		for (size_t i = 0; i < count; i++)
-		{
-			charArray[i] = (*this)[i];
-		}
-		return *charArray;
-	}
-	void CopyChar(char* target, size_t length)
-	{
-		for (size_t i = 0; i < length; i++)
-		{
-			target[i] = (*this)[i];
-		}
-	}
-};
-
 class StaticString : public StaticArray<char>
 {
 public:
@@ -344,32 +296,38 @@ public:
 	{
 		Append(string);
 	}
-	StaticString(size_t capacity) : StaticArray<char>(capacity) {}
+	StaticString(size_t capacity) : StaticArray<char>(capacity + 1) {}
 	~StaticString()
 	{
 		cout << "\nStaticString ¼Ò¸ê\n";
 	}
-	void Append(DynamicString& string)
-	{
-		if (this->GetCount() > 0)
-		{
-			this->Pop();
-		}
-		for (size_t i = 0; string[i] != '\0'; i++)
-		{
-			this->Add(string[i]);
-		}
-		this->Add('\0');
-	}
+	//void Append(DynamicString& string)
+	//{
+	//	if (this->GetCount() > 0)
+	//	{
+	//		this->Pop();
+	//	}
+	//	if (string.GetCount() > 0)
+	//	{
+	//		for (size_t i = 0; string[i] != '\0'; i++)
+	//		{
+	//			this->Add(string[i]);
+	//		}
+	//	}
+	//	this->Add('\0');
+	//}
 	void Append(StaticString& string)
 	{
 		if (this->GetCount() > 0)
 		{
 			this->Pop();
 		}
-		for (size_t i = 0; string[i] != '\0'; i++)
+		if (string.GetCount() > 0)
 		{
-			this->Add(string[i]);
+			for (size_t i = 0; string[i] != '\0'; i++)
+			{
+				this->Add(string[i]);
+			}
 		}
 		this->Add('\0');
 	}
@@ -423,6 +381,67 @@ public:
 	{
 		size_t count = this->GetCount();
 		for (size_t i = 0; i < count; i++)
+		{
+			target[i] = (*this)[i];
+		}
+	}
+};
+
+class DynamicString : public DynamicArray<char>
+{
+public:
+	DynamicString(size_t capacity) : DynamicArray<char>(capacity) {}
+	~DynamicString()
+	{
+		cout << "\nDynamicString ¼Ò¸ê\n";
+	}
+	void Append(const char* string)
+	{
+		if (this->GetCount() > 0)
+		{
+			this->Pop();
+		}
+		for (size_t i = 0; string[i] != '\0'; i++)
+		{
+			this->Add(string[i]);
+		}
+		this->Add('\0');
+	}
+	void Append(StaticString& string)
+	{
+		if (this->GetCount() > 0)
+		{
+			this->Pop();
+		}
+		size_t count = string.GetCount();
+		for (size_t i = 0; (i < count && string[i] != '\0'); i++)
+		{
+			this->Add(string[i]);
+		}
+		this->Add('\0');
+	}
+	void Append(const char& singleChar)
+	{
+		if (this->GetCount() > 0)
+		{
+			this->Pop();
+		}
+		this->Add(singleChar);
+		this->Add('\0');
+	}
+	char& GetNewCharInHeap()
+	{
+		size_t count = this->GetCount();
+		char* charArray = new char[count];
+		for (size_t i = 0; i < count; i++)
+		{
+			charArray[i] = (*this)[i];
+		}
+		return *charArray;
+	}
+	void CopyChar(char* target, size_t length)
+	{
+		for (size_t i = 0; i < length; i++)
 		{
 			target[i] = (*this)[i];
 		}
